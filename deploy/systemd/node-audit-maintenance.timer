@@ -1,0 +1,12 @@
+[Unit]
+Description=Run VPS Node Auditor maintenance at 03:15 Hong Kong time
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Asia/Hong_Kong
+Persistent=true
+AccuracySec=1min
+Unit=node-audit-maintenance.service
+
+[Install]
+WantedBy=timers.target
+

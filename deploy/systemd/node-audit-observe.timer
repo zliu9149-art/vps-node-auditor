@@ -1,0 +1,12 @@
+[Unit]
+Description=Record VPS Node Auditor acceptance metrics at 03:45 Hong Kong time
+
+[Timer]
+OnCalendar=*-*-* 03:45:00 Asia/Hong_Kong
+Persistent=true
+AccuracySec=1min
+Unit=node-audit-observe.service
+
+[Install]
+WantedBy=timers.target
+

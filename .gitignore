@@ -1,0 +1,30 @@
+# Local shallow clones and other external source checkouts.
+# Their provenance is documented in references/README.md.
+/references/*/
+
+# Build and runtime artifacts
+/bin/
+/dist/
+/data/
+/.tools/
+/.cache/
+*.db
+*.db-shm
+*.db-wal
+*.log
+coverage.out
+
+# Local configuration and secrets
+/config.json
+/provision.json
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc

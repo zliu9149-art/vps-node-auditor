@@ -1,0 +1,18 @@
+{
+  "core_config_path": "/etc/sing-box/config.json",
+  "core_binary_path": "/usr/local/bin/sing-box",
+  "core_unit_path": "/etc/systemd/system/sing-box.service",
+  "service_name": "sing-box",
+  "inbound_tag": "proxy-in",
+  "output_directory": "/root/vps-node-auditor/clients",
+  "backup_directory": "/var/backups/vps-node-auditor/provision",
+  "lock_path": "/run/vps-node-auditor/config.lock",
+  "server": "203.0.113.10",
+  "port": 443,
+  "reality_public_key": "EXAMPLE_PUBLIC_KEY_REPLACE_ON_VPS",
+  "sni": "www.example.com",
+  "short_id": "0123456789abcdef",
+  "flow": "xtls-rprx-vision",
+  "mixed_port": 7890,
+  "stats_address": "127.0.0.1:10085"
+}

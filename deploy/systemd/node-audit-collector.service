@@ -1,0 +1,49 @@
+[Unit]
+Description=VPS Node Traffic Audit Collector
+After=network-online.target sing-box.service
+Wants=network-online.target sing-box.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=node-audit
+Group=node-audit
+ExecStart=/usr/local/libexec/vps-node-auditor/node-audit-collector --config /etc/vps-node-auditor/config.json
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+RuntimeDirectory=vps-node-auditor
+RuntimeDirectoryMode=0755
+
+# The collector only needs its configuration, procfs metadata, localhost Stats
+# API access, and write access to its own SQLite data directory.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+IPAddressDeny=any
+IPAddressAllow=localhost
+ReadWritePaths=/var/lib/vps-node-auditor /run/vps-node-auditor
+TasksMax=64
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=node-audit-collector
+
+[Install]
+WantedBy=multi-user.target

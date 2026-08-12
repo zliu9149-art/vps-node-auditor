@@ -1,0 +1,29 @@
+[Unit]
+Description=VPS Node Auditor Consistent Database Backup
+After=node-audit-maintenance.service
+
+[Service]
+Type=oneshot
+User=node-audit
+Group=node-audit
+ExecStart=/usr/local/libexec/vps-node-auditor/node-audit-maintenance --config /etc/vps-node-auditor/config.json backup --dir /var/backups/vps-node-auditor/database
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/var/lib/vps-node-auditor /var/backups/vps-node-auditor/database
+StandardOutput=journal
+StandardError=journal

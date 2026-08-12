@@ -1,0 +1,12 @@
+[Unit]
+Description=Back up VPS Node Auditor database at 03:30 Hong Kong time
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Hong_Kong
+Persistent=true
+AccuracySec=1min
+Unit=node-audit-backup.service
+
+[Install]
+WantedBy=timers.target
+

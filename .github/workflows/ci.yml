@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: 1.25.12
+          cache: true
+      - name: Format
+        run: test -z "$(gofmt -l .)"
+      - name: Vet and test
+        run: |
+          go vet ./...
+          go test -count=1 ./...
+      - name: Build Linux AMD64 v1.0.0
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist/linux-amd64
+          for command in vna node-audit node-audit-collector node-audit-maintenance node-provision; do
+            go build -trimpath -buildvcs=false -ldflags "-s -w -X main.version=v1.0.0" -o "dist/linux-amd64/$command" "./cmd/$command"
+          done
+          test "$(dist/linux-amd64/vna version)" = "VPS Node Auditor v1.0.0"
+      - name: Shell and Python checks
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck -s sh deploy/scripts/*.sh
+          python3 -m compileall -q deploy/scripts
+          python3 deploy/scripts/scripts_test.py
+          sudo env PATH="$PATH" sh deploy/scripts/linux_fault_test.sh
+      - name: Vulnerability scan
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          govulncheck ./...
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
