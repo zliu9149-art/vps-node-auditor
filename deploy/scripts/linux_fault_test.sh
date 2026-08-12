@@ -6,6 +6,45 @@ set -eu
 PROJECT_DIR=$(unset CDPATH; cd -- "$(dirname -- "$0")/../.." && pwd)
 TEST_DIR=$(mktemp -d /tmp/vna-linux-fault-XXXXXXXXXX)
 trap 'rm -rf "$TEST_DIR"' EXIT HUP INT TERM
+
+fail() {
+    message=$1
+    shift
+    echo "linux fault test failed: $message" >&2
+    for diagnostic in "$@"; do
+        if [ -f "$diagnostic" ]; then
+            echo "--- $diagnostic ---" >&2
+            sed -n '1,200p' "$diagnostic" >&2
+        fi
+    done
+    exit 1
+}
+
+assert_file_line() {
+    expected=$1
+    path=$2
+    message=$3
+    shift 3
+    [ -f "$path" ] || fail "$message: missing file $path" "$@"
+    grep -Fxq "$expected" "$path" || fail "$message: expected exact line '$expected' in $path" "$@"
+}
+
+assert_contains() {
+    expected=$1
+    path=$2
+    message=$3
+    shift 3
+    [ -f "$path" ] || fail "$message: missing file $path" "$@"
+    grep -Fq "$expected" "$path" || fail "$message: expected text '$expected' in $path" "$@"
+}
+
+assert_exists() {
+    path=$1
+    message=$2
+    shift 2
+    [ -e "$path" ] || fail "$message: missing path $path" "$@"
+}
+
 ROOT="$TEST_DIR/root"
 DIST="$TEST_DIR/dist"
 STUBS="$TEST_DIR/stubs"
@@ -105,15 +144,23 @@ PATH="$STUBS:$PATH" VNA_TEST_ROOT="$ROOT" VNA_FAULT_STATE="$STATE" \
     "$PROJECT_DIR/deploy/scripts/install.sh" --dist-dir "$DIST" >"$TEST_DIR/stdout" 2>"$TEST_DIR/stderr"
 status=$?
 set -e
-[ "$status" -ne 0 ] || { echo "faulted install unexpectedly succeeded" >&2; exit 1; }
-grep -Fxq old-vna "$ROOT/usr/local/libexec/vps-node-auditor/vna"
-grep -Fxq old-config "$ROOT/etc/vps-node-auditor/config.json"
-grep -Fxq old-unit "$ROOT/etc/systemd/system/node-audit-collector.service"
-grep -Fxq old-database "$ROOT/var/lib/vps-node-auditor/audit.db"
-[ "$(cat "$STATE/collector")" = active ]
-[ -f "$STATE/packages-installed" ]
-[ -f "$STATE/packages-removed" ]
-grep -Fq "previous managed files and service state restored" "$TEST_DIR/stderr"
+[ "$status" -ne 0 ] || fail "faulted install unexpectedly succeeded" "$TEST_DIR/stdout" "$TEST_DIR/stderr"
+assert_file_line old-vna "$ROOT/usr/local/libexec/vps-node-auditor/vna" \
+    "install rollback did not restore vna" "$TEST_DIR/stdout" "$TEST_DIR/stderr"
+assert_file_line old-config "$ROOT/etc/vps-node-auditor/config.json" \
+    "install rollback did not restore config" "$TEST_DIR/stdout" "$TEST_DIR/stderr"
+assert_file_line old-unit "$ROOT/etc/systemd/system/node-audit-collector.service" \
+    "install rollback did not restore collector unit" "$TEST_DIR/stdout" "$TEST_DIR/stderr"
+assert_file_line old-database "$ROOT/var/lib/vps-node-auditor/audit.db" \
+    "install rollback did not restore database" "$TEST_DIR/stdout" "$TEST_DIR/stderr"
+assert_file_line active "$STATE/collector" \
+    "install rollback did not restore active collector state" "$TEST_DIR/stdout" "$TEST_DIR/stderr"
+assert_exists "$STATE/packages-installed" \
+    "fault injection did not observe dependency installation" "$TEST_DIR/stdout" "$TEST_DIR/stderr"
+assert_exists "$STATE/packages-removed" \
+    "install rollback did not remove newly introduced packages" "$TEST_DIR/stdout" "$TEST_DIR/stderr"
+assert_contains "previous managed files and service state restored" "$TEST_DIR/stderr" \
+    "install rollback did not report proven recovery" "$TEST_DIR/stdout" "$TEST_DIR/stderr"
 echo "Linux install rollback fault injection: ok"
 
 RESTORE_ROOT="$TEST_DIR/restore-root"
@@ -178,12 +225,18 @@ PATH="$RESTORE_STUBS:$PATH" VNA_TEST_ROOT="$RESTORE_ROOT" VNA_FAULT_STATE="$REST
     "$PROJECT_DIR/deploy/scripts/restore.sh" "$TEST_DIR/replacement.db" >"$TEST_DIR/restore-stdout" 2>"$TEST_DIR/restore-stderr"
 status=$?
 set -e
-[ "$status" -ne 0 ] || { echo "faulted restore unexpectedly succeeded" >&2; exit 1; }
-grep -Fxq old-database "$RESTORE_ROOT/var/lib/vps-node-auditor/audit.db"
-grep -Fxq old-wal "$RESTORE_ROOT/var/lib/vps-node-auditor/audit.db-wal"
-grep -Fxq old-shm "$RESTORE_ROOT/var/lib/vps-node-auditor/audit.db-shm"
-[ "$(cat "$RESTORE_STATE/collector")" = active ]
-grep -Fq "original database and collector state recovered" "$TEST_DIR/restore-stderr"
+[ "$status" -ne 0 ] || fail "faulted restore unexpectedly succeeded" \
+    "$TEST_DIR/restore-stdout" "$TEST_DIR/restore-stderr"
+assert_file_line old-database "$RESTORE_ROOT/var/lib/vps-node-auditor/audit.db" \
+    "restore rollback did not recover database" "$TEST_DIR/restore-stdout" "$TEST_DIR/restore-stderr"
+assert_file_line old-wal "$RESTORE_ROOT/var/lib/vps-node-auditor/audit.db-wal" \
+    "restore rollback did not recover WAL" "$TEST_DIR/restore-stdout" "$TEST_DIR/restore-stderr"
+assert_file_line old-shm "$RESTORE_ROOT/var/lib/vps-node-auditor/audit.db-shm" \
+    "restore rollback did not recover SHM" "$TEST_DIR/restore-stdout" "$TEST_DIR/restore-stderr"
+assert_file_line active "$RESTORE_STATE/collector" \
+    "restore rollback did not reactivate collector" "$TEST_DIR/restore-stdout" "$TEST_DIR/restore-stderr"
+assert_contains "original database and collector state recovered" "$TEST_DIR/restore-stderr" \
+    "restore rollback did not report proven recovery" "$TEST_DIR/restore-stdout" "$TEST_DIR/restore-stderr"
 echo "Linux restore rollback fault injection: ok"
 
 # Repeat the same failure with an originally inactive collector. Recovery must
@@ -198,7 +251,11 @@ PATH="$RESTORE_STUBS:$PATH" VNA_TEST_ROOT="$RESTORE_ROOT" VNA_FAULT_STATE="$REST
     "$PROJECT_DIR/deploy/scripts/restore.sh" "$TEST_DIR/replacement.db" >"$TEST_DIR/inactive-stdout" 2>"$TEST_DIR/inactive-stderr"
 status=$?
 set -e
-[ "$status" -ne 0 ] || { echo "inactive faulted restore unexpectedly succeeded" >&2; exit 1; }
-grep -Fxq old-database "$RESTORE_ROOT/var/lib/vps-node-auditor/audit.db"
-[ "$(cat "$RESTORE_STATE/collector")" = inactive ]
+[ "$status" -ne 0 ] || fail "inactive faulted restore unexpectedly succeeded" \
+    "$TEST_DIR/inactive-stdout" "$TEST_DIR/inactive-stderr"
+assert_file_line old-database "$RESTORE_ROOT/var/lib/vps-node-auditor/audit.db" \
+    "inactive restore rollback did not recover database" "$TEST_DIR/inactive-stdout" "$TEST_DIR/inactive-stderr"
+assert_file_line inactive "$RESTORE_STATE/collector" \
+    "inactive restore rollback started the collector" "$TEST_DIR/inactive-stdout" "$TEST_DIR/inactive-stderr"
 echo "Linux restore inactive-state rollback: ok"
+
