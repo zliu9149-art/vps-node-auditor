@@ -231,7 +231,7 @@ sing-box Stats 与 vnStat 回答的是不同问题：
 
 ## 项目状态
 
-- 当前稳定版本：`v1.0.0`
+- 当前稳定版本：`v1.0.1`
 - 当前生产安装目标：AlmaLinux/RHEL 系 Linux AMD64 单节点
 - 自动检查：格式、`go vet`、单元/集成测试、Linux AMD64 构建、Shell/Python 检查、漏洞扫描和秘密扫描
 - 兼容策略：v1.x 保持公开 CLI 语义，并以事务方式向前迁移 SQLite；破坏性接口变更留到 v2.0.0
