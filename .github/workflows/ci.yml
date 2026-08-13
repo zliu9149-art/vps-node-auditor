@@ -24,17 +24,19 @@ jobs:
         run: |
           go vet ./...
           go test -count=1 ./...
-      - name: Build Linux AMD64 v1.0.0
+      - name: Build Linux AMD64
         env:
           CGO_ENABLED: "0"
           GOOS: linux
           GOARCH: amd64
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'devel' }}
         run: |
+          printf '%s\n' "$VERSION" | grep -Eq '^(devel|v[0-9]+\.[0-9]+\.[0-9]+)$'
           mkdir -p dist/linux-amd64
           for command in vna node-audit node-audit-collector node-audit-maintenance node-provision; do
-            go build -trimpath -buildvcs=false -ldflags "-s -w -X main.version=v1.0.0" -o "dist/linux-amd64/$command" "./cmd/$command"
+            go build -trimpath -buildvcs=false -ldflags "-s -w -X main.version=$VERSION" -o "dist/linux-amd64/$command" "./cmd/$command"
           done
-          test "$(dist/linux-amd64/vna version)" = "VPS Node Auditor v1.0.0"
+          test "$(dist/linux-amd64/vna version)" = "VPS Node Auditor $VERSION"
       - name: Shell and Python checks
         run: |
           sudo apt-get update
